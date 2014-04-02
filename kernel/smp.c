@@ -13,6 +13,7 @@
 #include <linux/gfp.h>
 #include <linux/smp.h>
 #include <linux/cpu.h>
+#include <asm/relaxed.h>
 
 #include "smpboot.h"
 
@@ -129,8 +130,8 @@ void __init call_function_init(void)
 static void csd_lock_wait(struct call_single_data *csd)
 {
 	set_csd_lock_waiting_flag();
-	while (csd->flags & CSD_FLAG_LOCK)
-		cpu_relax();
+	while (cpu_relaxed_read_short(&csd->flags) & CSD_FLAG_LOCK)
+		cpu_read_relax();
 	clear_csd_lock_waiting_flag();
 }
 
