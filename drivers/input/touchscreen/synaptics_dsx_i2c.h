@@ -290,6 +290,7 @@ enum {
 	STATE_UNKNOWN,
 	STATE_ACTIVE,
 	STATE_SUSPEND,
+	STATE_KEEP_AWAKE,
 	STATE_STANDBY = 4,
 	STATE_BL,
 	STATE_INIT,
@@ -477,6 +478,7 @@ struct synaptics_rmi4_data {
 	int sensor_max_x;
 	int sensor_max_y;
 	bool irq_enabled;
+	bool keep_awake;
 	atomic_t touch_stopped;
 	bool flash_enabled;
 	bool ic_on;

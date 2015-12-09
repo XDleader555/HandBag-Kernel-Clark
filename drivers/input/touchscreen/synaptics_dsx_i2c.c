@@ -34,6 +34,11 @@
 #include <linux/reboot.h>
 #include <linux/input/synaptics_rmi_dsx.h>
 
+#ifdef CONFIG_WAKE_GESTURES
+#include <linux/wake_gestures.h>
+#include <linux/wakelock.h>
+#endif
+
 /* define to enable USB charger detection */
 #undef USB_CHARGER_DETECTION
 
@@ -124,6 +129,17 @@ static int control_access_block_update_static(
 		struct synaptics_rmi4_data *rmi4_data);
 static int control_access_block_update_dynamic(
 		struct synaptics_rmi4_data *rmi4_data);
+
+#ifdef CONFIG_WAKE_GESTURES
+struct synaptics_rmi4_data *gl_rmi4_data;
+static struct wake_lock syn_wakelock;
+bool gestures_enabled;
+bool scr_suspended(void)
+{
+	struct synaptics_rmi4_data *rmi4_data = gl_rmi4_data;
+	return rmi4_data->keep_awake;
+}
+#endif
 
 /* F12 packet register description */
 static struct {
@@ -1422,7 +1438,11 @@ static struct synaptics_dsx_platform_data *
 		button_map->map = button_codes;
 	}
 
-	pdata->irq_flags = IRQF_TRIGGER_LOW | IRQF_ONESHOT;
+#ifdef CONFIG_WAKE_GESTURES
+	pdata->irq_flags = IRQF_TRIGGER_LOW | IRQF_ONESHOT | IRQF_NO_SUSPEND;
+#else
+	pdata->irq_flags = IRQF_TRIGGER_LOW | IRQF_ONESHOT ;
+#endif
 	pdata->cap_button_map = button_map;
 
 	if (of_property_read_bool(np, "synaptics,gpio-config")) {
@@ -1861,6 +1881,10 @@ static ssize_t synaptics_rmi4_drv_irq_show(struct device *dev,
 static ssize_t synaptics_rmi4_drv_irq_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count);
 
+#ifdef CONFIG_WAKE_GESTURES
+static ssize_t synaptics_rmi4_keep_awake_show(struct device *dev,
+		struct device_attribute *attr, char *buf);
+#endif
 static ssize_t synaptics_rmi4_hw_irqstat_show(struct device *dev,
 		struct device_attribute *attr, char *buf);
 
@@ -2028,6 +2052,11 @@ static struct device_attribute attrs[] = {
 	__ATTR(drv_irq, (S_IRUSR | S_IRGRP | S_IWUSR | S_IWGRP),
 			synaptics_rmi4_drv_irq_show,
 			synaptics_rmi4_drv_irq_store),
+#ifdef CONFIG_WAKE_GESTURES
+	__ATTR(prevent_sleep, S_IRUSR | S_IRGRP,
+			synaptics_rmi4_keep_awake_show,
+			NULL),
+#endif
 	__ATTR(reporting, (S_IRUSR | S_IRGRP | S_IWUSR | S_IWGRP),
 			synaptics_rmi4_reporting_show,
 			synaptics_rmi4_reporting_store),
@@ -2432,7 +2461,7 @@ nothing_to_patch:
 }
 
 static const char * const synaptics_state_names[] = {"UNKNOWN",
-	"ACTIVE", "SUSPEND", "UNUSED", "STANDBY", "BL", "INIT",
+	"ACTIVE", "SUSPEND", "KEEP_AWAKE", "STANDBY", "BL", "INIT",
 	"FLASH", "QUERY", "INVALID" };
 
 static const char *synaptics_dsx_state_name(int state)
@@ -2565,6 +2594,15 @@ static void synaptics_dsx_sensor_state(struct synaptics_rmi4_data *rmi4_data,
 		if (gStat.enabled)
 			statistics_start_timekeeping(rmi4_data);
 			break;
+
+#ifdef CONFIG_WAKE_GESTURES
+	case STATE_KEEP_AWAKE:
+		if (rmi4_data->keep_awake) {
+			synaptics_dsx_wait_for_idle(rmi4_data);
+			synaptics_dsx_enable_wakeup_source(rmi4_data, true);
+		}
+			break;
+#endif
 
 	case STATE_STANDBY:
 		synaptics_rmi4_irq_enable(rmi4_data, false);
@@ -3089,6 +3127,16 @@ static ssize_t synaptics_rmi4_drv_irq_store(struct device *dev,
 	return count;
 }
 
+#ifdef CONFIG_WAKE_GESTURES
+static ssize_t synaptics_rmi4_keep_awake_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct synaptics_rmi4_data *rmi4_data = dev_get_drvdata(dev);
+
+	return scnprintf(buf, PAGE_SIZE, "%s\n",
+			rmi4_data->keep_awake ? "ENABLED" : "DISABLED");
+}
+#endif
 static ssize_t synaptics_rmi4_0dbutton_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -3880,6 +3928,11 @@ static int synaptics_rmi4_f11_abs_report(struct synaptics_rmi4_data *rmi4_data,
 					__func__, finger,
 					x, y, wx, wy, z);
 
+#ifdef CONFIG_WAKE_GESTURES
+			if (rmi4_data->keep_awake)
+				x += 5000;
+#endif
+
 			input_report_abs(rmi4_data->input_dev,
 					ABS_MT_POSITION_X, x);
 			input_report_abs(rmi4_data->input_dev,
@@ -4336,6 +4389,11 @@ static irqreturn_t synaptics_rmi4_irq(int irq, void *data)
 
 	synaptics_rmi4_sensor_report(rmi4_data);
 
+#ifdef CONFIG_WAKE_GESTURES
+	if (rmi4_data->keep_awake && gestures_enabled) {
+		wake_lock_timeout(&syn_wakelock, HZ/4);
+	}
+#endif
 	return IRQ_HANDLED;
 }
 
@@ -6253,6 +6311,9 @@ static int synaptics_rmi4_probe(struct i2c_client *client,
 	rmi4_data->current_page = MASK_8BIT;
 	rmi4_data->board = platform_data;
 	rmi4_data->irq_enabled = false;
+#ifdef CONFIG_WAKE_GESTURES
+	rmi4_data->keep_awake = false;
+#endif
 	atomic_set(&rmi4_data->touch_stopped, 1);
 	rmi4_data->ic_on = true;
 	rmi4_data->flash_enabled = false;
@@ -6433,7 +6494,7 @@ static int synaptics_rmi4_probe(struct i2c_client *client,
 		}
 	}
 
-	synaptics_dsx_sensor_ready_state(rmi4_data, true);
+	synaptics_dsx_sensor_ready_state(rmi4_data, false);
 
 	rmi4_data->rmi_reboot.notifier_call = rmi_reboot;
 	rmi4_data->rmi_reboot.next = NULL;
@@ -6466,6 +6527,11 @@ static int synaptics_rmi4_probe(struct i2c_client *client,
 
 	if (rmi4_data->charger_detection)
 		ps_notifier_register(rmi4_data);
+
+#ifdef CONFIG_WAKE_GESTURES
+	wake_lock_init(&syn_wakelock, WAKE_LOCK_SUSPEND, "syn_wakelock");
+	gl_rmi4_data = rmi4_data;
+#endif
 
 	return retval;
 
@@ -6595,6 +6661,9 @@ static int synaptics_dsx_panel_cb(struct notifier_block *nb,
 		/* to ensure shared power supply is still on */
 		/* for in-cell design touch solutions */
 		if (event == FB_EARLY_EVENT_BLANK) {
+#ifdef CONFIG_WAKE_GESTURES
+			gestures_enabled = (s2w_switch > 0) || (dt2w_switch > 0);
+#endif
 			if (*blank != FB_BLANK_POWERDOWN)
 				return 0;
 			synaptics_dsx_display_off(&rmi4_data->i2c_client->dev);
@@ -6758,6 +6827,21 @@ static void synaptics_dsx_resumeinfo_touch(
 			getnstimeofday(&(tmp->send_touch));
 	}
 }
+
+#ifdef CONFIG_WAKE_GESTURES
+static void s2w_enable(struct synaptics_rmi4_data *rmi4_data, bool enable)
+{
+	rmi4_data->keep_awake = enable;
+	if (enable) {
+		synaptics_dsx_sensor_state(rmi4_data, STATE_KEEP_AWAKE);
+		synaptics_dsx_release_all(rmi4_data);
+	} else {
+		synaptics_dsx_enable_wakeup_source(rmi4_data, false);
+		synaptics_dsx_sensor_state(rmi4_data, STATE_ACTIVE);
+	}
+}
+#endif
+
  /**
  * synaptics_rmi4_suspend()
  *
@@ -6776,6 +6860,12 @@ static int synaptics_rmi4_suspend(struct device *dev)
 			rmi4_data->board;
 	static char ud_stats[PAGE_SIZE];
 
+#ifdef CONFIG_WAKE_GESTURES
+	if (gestures_enabled) {
+		s2w_enable(rmi4_data, true);
+		return 0;
+	}
+#endif
 	if (atomic_cmpxchg(&rmi4_data->touch_stopped, 0, 1) == 1)
 		return 0;
 
@@ -6838,6 +6928,12 @@ static int synaptics_rmi4_resume(struct device *dev)
 	const struct synaptics_dsx_platform_data *platform_data =
 					rmi4_data->board;
 
+#ifdef CONFIG_WAKE_GESTURES
+	if (gestures_enabled) {
+		s2w_enable(rmi4_data, false);
+		goto out;
+	}
+#endif
 	if (atomic_cmpxchg(&rmi4_data->touch_stopped, 1, 0) == 0)
 		return 0;
 
@@ -6902,6 +6998,18 @@ static int synaptics_rmi4_resume(struct device *dev)
 		statistics_start_timekeeping(rmi4_data);
 
 	synaptics_dsx_resumeinfo_finish(rmi4_data);
+
+#ifdef CONFIG_WAKE_GESTURES
+out:
+	if (dt2w_switch_changed) {
+		dt2w_switch = dt2w_switch_temp;
+		dt2w_switch_changed = false;
+	}
+	if (s2w_switch_changed) {
+		s2w_switch = s2w_switch_temp;
+		s2w_switch_changed = false;
+	}
+#endif
 	return 0;
 }
 

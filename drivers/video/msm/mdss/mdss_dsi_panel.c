@@ -33,6 +33,12 @@
 
 #define MDSS_PANEL_DEFAULT_VER 0xffffffffffffffff
 #define MDSS_PANEL_UNKNOWN_NAME "unknown"
+
+#ifdef CONFIG_WAKE_GESTURES
+#include <linux/wake_gestures.h>
+static int onboot = true;
+#endif
+
 #define DT_CMD_HDR 6
 #define DCS_CMD_GET_POWER_MODE 0x0A    /* get power_mode */
 #define MIN_REFRESH_RATE 30
@@ -296,6 +302,14 @@ int mdss_dsi_panel_reset(struct mdss_panel_data *pdata, int enable)
 	pinfo = &(ctrl_pdata->panel_data.panel_info);
 
 	if (enable) {
+#ifdef CONFIG_WAKE_GESTURES
+		if (onboot == false) {
+			gpio_set_value((ctrl_pdata->rst_gpio), 0);
+			gpio_free(ctrl_pdata->rst_gpio);
+		}
+		onboot=false;
+
+#endif
 		rc = mdss_dsi_pinctrl_set_state(ctrl_pdata, true);
 		if (rc) {
 			pr_err("pinctrl set state active failed %d\n", rc);
@@ -335,23 +349,37 @@ int mdss_dsi_panel_reset(struct mdss_panel_data *pdata, int enable)
 			pr_debug("%s: Reset panel done\n", __func__);
 		}
 	} else {
-		if (gpio_is_valid(ctrl_pdata->bklt_en_gpio)) {
-			gpio_set_value((ctrl_pdata->bklt_en_gpio), 0);
-			gpio_free(ctrl_pdata->bklt_en_gpio);
-		}
-		if (gpio_is_valid(ctrl_pdata->disp_en_gpio)) {
-			gpio_set_value((ctrl_pdata->disp_en_gpio), 0);
-			gpio_free(ctrl_pdata->disp_en_gpio);
-		}
-		gpio_set_value((ctrl_pdata->rst_gpio), 0);
-		gpio_free(ctrl_pdata->rst_gpio);
-		if (gpio_is_valid(ctrl_pdata->mode_gpio))
-			gpio_free(ctrl_pdata->mode_gpio);
+#ifdef CONFIG_WAKE_GESTURES
+		if (gestures_enabled)
+			rc = 0;
+		else {
+#endif
+			if (gpio_is_valid(ctrl_pdata->bklt_en_gpio)) {
+				gpio_set_value((ctrl_pdata->bklt_en_gpio), 0);
+				gpio_free(ctrl_pdata->bklt_en_gpio);
+			}
+			if (gpio_is_valid(ctrl_pdata->disp_en_gpio)) {
+				gpio_set_value((ctrl_pdata->disp_en_gpio), 0);
+				gpio_free(ctrl_pdata->disp_en_gpio);
+			}
+#ifdef CONFIG_WAKE_GESTURES
+			if (!gestures_enabled) {
+#endif
+				gpio_set_value((ctrl_pdata->rst_gpio), 0);
+				gpio_free(ctrl_pdata->rst_gpio);
+#ifdef CONFIG_WAKE_GESTURES
+			}
+#endif
+			if (gpio_is_valid(ctrl_pdata->mode_gpio))
+				gpio_free(ctrl_pdata->mode_gpio);
 
-		rc = mdss_dsi_pinctrl_set_state(ctrl_pdata, false);
-		if (rc)
-			pr_err("pinctrl set suspend state failed %d\n", rc);
+			rc = mdss_dsi_pinctrl_set_state(ctrl_pdata, false);
+			if (rc)
+				pr_err("pinctrl set suspend state failed %d\n", rc);
+		}
+#ifdef CONFIG_WAKE_GESTURES
 	}
+#endif
 	return rc;
 }
 
@@ -936,7 +964,14 @@ static int mdss_dsi_panel_off(struct mdss_panel_data *pdata)
 
 	if (ctrl->set_acl)
 		ctrl->set_acl(ctrl, 1);
+#ifdef CONFIG_WAKE_GESTURES
+	if (gestures_enabled)
+		ctrl->off_cmds.cmds[1].payload[0] = 0x11;
+	else
+		ctrl->off_cmds.cmds[1].payload[0] = 0x10;
 
+	pr_info("[wake_gestures]: payload = %x \n", ctrl->off_cmds.cmds[1].payload[0]);
+#endif
 	if (!ctrl->ndx && pdata->mfd->quickdraw_in_progress)
 		pr_debug("%s: in quickdraw, SH wants the panel SLEEP OUT\n",
 			__func__);
