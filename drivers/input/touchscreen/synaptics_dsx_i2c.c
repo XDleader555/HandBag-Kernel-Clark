@@ -6661,7 +6661,7 @@ static int synaptics_dsx_panel_cb(struct notifier_block *nb,
 		/* for in-cell design touch solutions */
 		if (event == FB_EARLY_EVENT_BLANK) {
 #ifdef CONFIG_WAKE_GESTURES
-			gestures_enabled = (s2w_switch > 0) || (dt2w_switch > 0);
+			gestures_enabled = ((s2w_switch > 0) || (dt2w_switch > 0)) && (!pwrkey_pressed);
 #endif
 			if (*blank != FB_BLANK_POWERDOWN)
 				return 0;
@@ -6928,6 +6928,7 @@ static int synaptics_rmi4_resume(struct device *dev)
 					rmi4_data->board;
 
 #ifdef CONFIG_WAKE_GESTURES
+	pwrkey_pressed = 0;
 	if (gestures_enabled) {
 		s2w_enable(rmi4_data, false);
 		goto out;
