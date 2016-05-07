@@ -328,7 +328,7 @@ config CPU_FREQ_GOV_CHILL
 	  that go into suspended or display off states often.
 
 config CPU_FREQ_GOV_IMPULSE
-	tristate "'interactive' cpufreq policy governor"
+	tristate "'impulse' cpufreq policy governor"
 	help
 	  'impulse' - This driver adds a dynamic cpufreq policy governor
 	  designed for latency-sensitive workloads.
