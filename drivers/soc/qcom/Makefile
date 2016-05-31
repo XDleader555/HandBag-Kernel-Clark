@@ -87,10 +87,11 @@ endif
 obj-$(CONFIG_MSM_SHARED_HEAP_ACCESS) += shared_memory.o
 obj-$(CONFIG_MSM_SYSTEM_HEALTH_MONITOR) += system_health_monitor_v01.o
 obj-$(CONFIG_MSM_SYSTEM_HEALTH_MONITOR) += system_health_monitor.o
-obj-$(CONFIG_MSM_RTB) += msm_rtb-hotplug.o
+obj-$(CONFIG_MSM_RTB) 		+= msm_rtb-hotplug.o
 obj-$(CONFIG_QCOM_EARLY_RANDOM)	+= early_random.o
 obj-$(CONFIG_MSM_PACMAN)        += msm_pacman.o
 obj-$(CONFIG_BOOTINFO)		+= bootinfo.o
 obj-$(CONFIG_MMI_SOC_INFO) += mmi_soc_info.o
 obj-$(CONFIG_MMI_RAM_INFO) += mmi-ram-info.o
 obj-$(CONFIG_MMI_UNIT_INFO) += mmi-unit-info.o
+obj-$(CONFIG_BRICKED_HOTPLUG)   += bricked_hotplug.o
