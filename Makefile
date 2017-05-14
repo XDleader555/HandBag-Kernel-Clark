@@ -246,8 +246,8 @@ CONFIG_SHELL := $(shell if [ -x "$$BASH" ]; then echo $$BASH; \
 
 HOSTCC       = gcc
 HOSTCXX      = g++
-HOSTCFLAGS   = -Wall -Wmissing-prototypes -Wstrict-prototypes -O2 -fomit-frame-pointer -std=gnu89
-HOSTCXXFLAGS = -O2
+HOSTCFLAGS   = -Wall -Wmissing-prototypes -Wstrict-prototypes -Ofast -fomit-frame-pointer -std=gnu89
+HOSTCXXFLAGS = -Ofast
 
 # Decide whether to build built-in, modular, or both.
 # Normally, just do built-in.
@@ -330,8 +330,8 @@ include $(srctree)/scripts/Kbuild.include
 # Make variables (CC, etc...)
 
 AS		= $(CROSS_COMPILE)as
-LD		= $(CROSS_COMPILE)ld
-REAL_CC		= $(CROSS_COMPILE)gcc
+LD		= $(CROSS_COMPILE)ld -Ofast --strip-debug
+CC		= $(CROSS_COMPILE)gcc
 CPP		= $(CC) -E
 AR		= $(CROSS_COMPILE)ar
 NM		= $(CROSS_COMPILE)nm
@@ -378,7 +378,12 @@ LINUXINCLUDE    := \
 
 KBUILD_CPPFLAGS := -D__KERNEL__
 
-KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
+HANDBAG_CFLAGS  := -march=armv8-a+crc+crypto -mtune=cortex-a57.cortex-a53 -mcpu=cortex-a57.cortex-a53 \
+		-mlow-precision-recip-sqrt -mpc-relative-literal-loads --param l1-cache-size=32 \
+		--param l1-cache-line-size=64 --param l2-cache-size=2048 --param simultaneous-prefetches=6 \
+		--param prefetch-latency=400
+
+KBUILD_CFLAGS   := $(HANDBAG_CFLAGS) -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
 		   -fno-strict-aliasing -fno-common \
 		   -Werror-implicit-function-declaration \
 		   -Wno-format-security \
@@ -588,7 +593,7 @@ KBUILD_CFLAGS	+= $(call cc-disable-warning,unused-const-variable,)
 KBUILD_CFLAGS	+= $(call cc-disable-warning,frame-address,)
 KBUILD_CFLAGS	+= $(call cc-disable-warning,misleading-indentation,)
 KBUILD_CFLAGS   += $(call cc-disable-warning,unused-variable,)
-KBUILD_CFLAGS   += $(call cc-disable-warning,memset-transposed-args,)
+KBUILD_CFLAGS   += $(call cc-disable-warning,memset-transp osed-args,)
 KBUILD_CFLAGS   += $(call cc-disable-warning,discarded-array-qualifiers,)
 KBUILD_CFLAGS   += $(call cc-disable-warning,switch-bool,)
 KBUILD_CFLAGS   += $(call cc-disable-warning,switch,)
@@ -599,7 +604,7 @@ KBUILD_CFLAGS   += $(call cc-disable-warning,bool-compare)
 ifdef CONFIG_CC_OPTIMIZE_FOR_SIZE
 KBUILD_CFLAGS	+= -Os $(call cc-disable-warning,maybe-uninitialized,)
 else
-KBUILD_CFLAGS	+= -O2
+KBUILD_CFLAGS	+= -Ofast
 endif
 
 include $(srctree)/arch/$(SRCARCH)/Makefile
