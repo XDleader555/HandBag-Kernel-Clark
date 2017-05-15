@@ -581,6 +581,21 @@ endif # $(dot-config)
 # Defaults to vmlinux, but the arch makefile usually adds further targets
 all: vmlinux
 
+# Disable certain compiler warnings for ubertc 6.0
+KBUILD_CFLAGS	+= $(call cc-option,-fno-delete-null-pointer-checks,)
+KBUILD_CFLAGS	+= $(call cc-disable-warning,maybe-uninitialized,)
+KBUILD_CFLAGS	+= $(call cc-disable-warning,unused-const-variable,)
+KBUILD_CFLAGS	+= $(call cc-disable-warning,frame-address,)
+KBUILD_CFLAGS	+= $(call cc-disable-warning,misleading-indentation,)
+KBUILD_CFLAGS   += $(call cc-disable-warning,unused-variable,)
+KBUILD_CFLAGS   += $(call cc-disable-warning,memset-transposed-args,)
+KBUILD_CFLAGS   += $(call cc-disable-warning,discarded-array-qualifiers,)
+KBUILD_CFLAGS   += $(call cc-disable-warning,switch-bool,)
+KBUILD_CFLAGS   += $(call cc-disable-warning,switch,)
+KBUILD_CFLAGS   += $(call cc-disable-warning,bool-compare)
+
+
+
 ifdef CONFIG_CC_OPTIMIZE_FOR_SIZE
 KBUILD_CFLAGS	+= -Os $(call cc-disable-warning,maybe-uninitialized,)
 else
@@ -627,6 +642,7 @@ KBUILD_CFLAGS += $(stackp-flag)
 # This warning generated too much noise in a regular build.
 # Use make W=1 to enable this warning (see scripts/Makefile.build)
 KBUILD_CFLAGS += $(call cc-disable-warning, unused-but-set-variable)
+
 
 ifdef CONFIG_FRAME_POINTER
 KBUILD_CFLAGS	+= -fno-omit-frame-pointer -fno-optimize-sibling-calls
