@@ -551,7 +551,7 @@ static void wakeup_source_activate(struct wakeup_source *ws)
 
 	if (WARN(wakeup_source_not_registered(ws),
 			"unregistered wakeup source\n")) {
-		// return; // Disabled to just warn for now
+		return;
 	}
 
 	/*
