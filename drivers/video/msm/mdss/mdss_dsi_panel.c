@@ -349,11 +349,6 @@ int mdss_dsi_panel_reset(struct mdss_panel_data *pdata, int enable)
 			pr_debug("%s: Reset panel done\n", __func__);
 		}
 	} else {
-#ifdef CONFIG_WAKE_GESTURES
-		if (gestures_enabled)
-			rc = 0;
-		else {
-#endif
 			if (gpio_is_valid(ctrl_pdata->bklt_en_gpio)) {
 				gpio_set_value((ctrl_pdata->bklt_en_gpio), 0);
 				gpio_free(ctrl_pdata->bklt_en_gpio);
@@ -377,9 +372,6 @@ int mdss_dsi_panel_reset(struct mdss_panel_data *pdata, int enable)
 			if (rc)
 				pr_err("pinctrl set suspend state failed %d\n", rc);
 		}
-#ifdef CONFIG_WAKE_GESTURES
-	}
-#endif
 	return rc;
 }
 

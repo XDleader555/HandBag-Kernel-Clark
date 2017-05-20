@@ -42,10 +42,6 @@
 
 #include <linux/motosh.h>
 
-#ifdef CONFIG_WAKE_GESTURES
-#include <linux/wake_gestures.h>
-#endif
-
 struct qd_trace_event_t {
 	u8 op;
 	u8 buffer_id;
@@ -271,11 +267,6 @@ int motosh_display_handle_touch_locked(struct motosh_data *ps_motosh)
 			"Failed to create uevent\n");
 		return -EPERM;
 	}
-#ifdef CONFIG_WAKE_GESTURES
-	/* Dirty hack to prevent touchpanel lockup */ 
-	if (gestures_enabled)
-		dt2w_switch = s2w_switch = 0;
-#endif
 
 	return 0;
 }

@@ -3727,6 +3727,10 @@ static int synaptics_rmi4_f12_abs_report(struct synaptics_rmi4_data *rmi4_data,
 						__func__, finger,
 						x, y, p, w);
 
+#ifdef CONFIG_WAKE_GESTURES
+			if (rmi4_data->keep_awake)
+				x += 5000;
+#endif
 			input_report_abs(rmi4_data->input_dev,
 					ABS_MT_POSITION_X, x);
 			input_report_abs(rmi4_data->input_dev,
@@ -3927,11 +3931,6 @@ static int synaptics_rmi4_f11_abs_report(struct synaptics_rmi4_data *rmi4_data,
 					"z = %d\n",
 					__func__, finger,
 					x, y, wx, wy, z);
-
-#ifdef CONFIG_WAKE_GESTURES
-			if (rmi4_data->keep_awake)
-				x += 5000;
-#endif
 
 			input_report_abs(rmi4_data->input_dev,
 					ABS_MT_POSITION_X, x);
