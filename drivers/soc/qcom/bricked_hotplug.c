@@ -865,7 +865,7 @@ static int bricked_hotplug_probe(struct platform_device *pdev)
 	struct kobject *bricked_kobj;
 
 	bricked_kobj =
-		kobject_create_and_add("msm_mpdecision", kernel_kobj);
+		kobject_create_and_add("bricked_hotplug", kernel_kobj);
 	if (!bricked_kobj) {
 		pr_err("%s kobject create failed!\n",
 			__func__);
