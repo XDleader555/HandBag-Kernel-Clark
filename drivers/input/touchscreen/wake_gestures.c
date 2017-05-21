@@ -559,8 +559,7 @@ static int register_wg(void)
 {
 	int rc = 0;
 
-	if (!s2w_switch && !s2s_switch && !dt2w_switch && !gestures_switch
-		&& !camera_switch) {
+	if (!s2w_switch && !s2s_switch && !dt2w_switch && !gestures_switch) {
 		unregister_wg();
 		return rc;
 	}
