@@ -35,7 +35,7 @@
 #include <linux/wakelock.h>
 
 /* Tuneables */
-#define WG_DEBUG		1
+#define WG_DEBUG		0
 #define WG_DEFAULT		0
 #define S2W_DEFAULT		0
 #define S2S_DEFAULT		0
