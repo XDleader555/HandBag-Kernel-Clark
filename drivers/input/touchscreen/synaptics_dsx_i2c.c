@@ -2052,7 +2052,7 @@ static struct device_attribute attrs[] = {
 			synaptics_rmi4_drv_irq_show,
 			synaptics_rmi4_drv_irq_store),
 #ifdef CONFIG_WAKE_GESTURES
-	__ATTR(prevent_sleep, S_IRUSR | S_IRGRP,
+	__ATTR(keep_awake, S_IRUSR | S_IRGRP,
 			synaptics_rmi4_keep_awake_show,
 			NULL),
 #endif
