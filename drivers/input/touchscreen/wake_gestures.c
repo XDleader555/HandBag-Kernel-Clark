@@ -437,10 +437,6 @@ static void dt2w_input_callback(struct work_struct *unused)
 static void wg_input_event(struct input_handle *handle, unsigned int type,
 				unsigned int code, int value)
 {
-	if (scr_suspended() && code == ABS_MT_POSITION_X) {
-		value -= 5000;
-	}
-
 #if WG_DEBUG
 	pr_info("wg: code: %s|%u, val: %i\n",
 		((code==ABS_MT_POSITION_X) ? "X" :
@@ -713,7 +709,7 @@ static ssize_t vib_strength_dump(struct device *dev,
 {
 	sscanf(buf, "%d ",&vib_strength);
 	if (vib_strength < 0 || vib_strength > 90)
-		vib_strength = 20;
+		vib_strength = 40;
 
 	return count;
 }

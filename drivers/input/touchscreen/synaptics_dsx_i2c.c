@@ -2596,10 +2596,8 @@ static void synaptics_dsx_sensor_state(struct synaptics_rmi4_data *rmi4_data,
 
 #ifdef CONFIG_WAKE_GESTURES
 	case STATE_KEEP_AWAKE:
-		if (rmi4_data->keep_awake) {
-			synaptics_dsx_wait_for_idle(rmi4_data);
-			synaptics_dsx_enable_wakeup_source(rmi4_data, true);
-		}
+		synaptics_dsx_wait_for_idle(rmi4_data);
+		synaptics_dsx_enable_wakeup_source(rmi4_data, true);
 			break;
 #endif
 
@@ -3726,10 +3724,6 @@ static int synaptics_rmi4_f12_abs_report(struct synaptics_rmi4_data *rmi4_data,
 						__func__, finger,
 						x, y, p, w);
 
-#ifdef CONFIG_WAKE_GESTURES
-			if (rmi4_data->keep_awake)
-				x += 5000;
-#endif
 			input_report_abs(rmi4_data->input_dev,
 					ABS_MT_POSITION_X, x);
 			input_report_abs(rmi4_data->input_dev,
@@ -6654,7 +6648,8 @@ static int synaptics_dsx_panel_cb(struct notifier_block *nb,
 		/* for in-cell design touch solutions */
 		if (event == FB_EARLY_EVENT_BLANK) {
 #ifdef CONFIG_WAKE_GESTURES
-			gestures_enabled = ((s2w_switch > 0) || (dt2w_switch > 0)) && (!pwrkey_pressed);
+			gestures_enabled = ((s2w_switch > 0) || (dt2w_switch > 0)) &&
+					(!pwrkey_pressed) && (!in_phone_call);
 #endif
 			if (*blank != FB_BLANK_POWERDOWN)
 				return 0;
@@ -6823,14 +6818,17 @@ static void synaptics_dsx_resumeinfo_touch(
 #ifdef CONFIG_WAKE_GESTURES
 static void s2w_enable(struct synaptics_rmi4_data *rmi4_data, bool enable)
 {
-	rmi4_data->keep_awake = enable;
 	if (enable) {
+		pr_info("wake_gestures: Entering gesture suspend\n");
 		synaptics_dsx_sensor_state(rmi4_data, STATE_KEEP_AWAKE);
 		synaptics_dsx_release_all(rmi4_data);
 	} else {
+		pr_info("wake_gestures: Exiting gesture suspend\n");
 		synaptics_dsx_enable_wakeup_source(rmi4_data, false);
 		synaptics_dsx_sensor_state(rmi4_data, STATE_ACTIVE);
 	}
+
+	rmi4_data->keep_awake = enable;
 }
 #endif
 
@@ -6853,17 +6851,25 @@ static int synaptics_rmi4_suspend(struct device *dev)
 	static char ud_stats[PAGE_SIZE];
 
 #ifdef CONFIG_WAKE_GESTURES
-	if (gestures_enabled) {
+	if (gestures_enabled && !in_phone_call) {
 		s2w_enable(rmi4_data, true);
-		return 0;
+	} else {
+		pr_info("wake_gestures: Not enabled, normal suspend");
 	}
 #endif
 	if (atomic_cmpxchg(&rmi4_data->touch_stopped, 0, 1) == 1)
 		return 0;
 
 	rmi4_data->flash_enabled = false;
+
+#ifdef CONFIG_WAKE_GESTURES
+	if (!gestures_enabled) {
+#endif
 	synaptics_dsx_sensor_state(rmi4_data, STATE_SUSPEND);
 	synaptics_dsx_release_all(rmi4_data);
+#ifdef CONFIG_WAKE_GESTURES
+	}
+#endif
 
 	if (gStat.enabled)
 		statistics_stop_timekeeping();
@@ -6877,6 +6883,9 @@ static int synaptics_rmi4_suspend(struct device *dev)
 		pr_debug("touches purge is %s\n", value ? "ON" : "OFF");
 	}
 
+#ifdef CONFIG_WAKE_GESTURES
+	if (!gestures_enabled) {
+#endif
 	if (rmi4_data->ic_on) {
 		/* use pinctrl to put touch RESET GPIO into SUSPEND state */
 		gpio_free(platform_data->reset_gpio);
@@ -6896,7 +6905,9 @@ static int synaptics_rmi4_suspend(struct device *dev)
 
 		rmi4_data->ic_on = false;
 	}
-
+#ifdef CONFIG_WAKE_GESTURES
+	}
+#endif
 	return 0;
 }
 
@@ -6921,10 +6932,14 @@ static int synaptics_rmi4_resume(struct device *dev)
 					rmi4_data->board;
 
 #ifdef CONFIG_WAKE_GESTURES
+	int gesture_resume;
+
+	gesture_resume = rmi4_data->keep_awake;
 	pwrkey_pressed = 0;
-	if (gestures_enabled) {
+	if (gesture_resume) {
 		s2w_enable(rmi4_data, false);
-		goto out;
+	} else {
+		pr_info("wake_gestures: Not enabled, normal resume.\n");
 	}
 #endif
 	if (atomic_cmpxchg(&rmi4_data->touch_stopped, 1, 0) == 0)
@@ -6932,6 +6947,9 @@ static int synaptics_rmi4_resume(struct device *dev)
 
 	synaptics_dsx_resumeinfo_start(rmi4_data);
 
+#ifdef CONFIG_WAKE_GESTURES
+	if (!gesture_resume) {
+#endif
 	if (!rmi4_data->ic_on) {
 		/* if touch REGULATOR is avaialble - turn it ON */
 		if (platform_data->regulator_en) {
@@ -6981,6 +6999,9 @@ static int synaptics_rmi4_resume(struct device *dev)
 	/* transition to active state is completed - allow flashing */
 	rmi4_data->flash_enabled = true;
 
+#ifdef CONFIG_WAKE_GESTURES
+	}
+#endif
 	if (rmi4_data->purge_enabled) {
 		int value = 0; /* clear flag */
 		atomic_set(&rmi4_data->panel_off_flag, value);
@@ -6993,14 +7014,15 @@ static int synaptics_rmi4_resume(struct device *dev)
 	synaptics_dsx_resumeinfo_finish(rmi4_data);
 
 #ifdef CONFIG_WAKE_GESTURES
-out:
-	if (dt2w_switch_changed) {
-		dt2w_switch = dt2w_switch_temp;
-		dt2w_switch_changed = false;
-	}
-	if (s2w_switch_changed) {
-		s2w_switch = s2w_switch_temp;
-		s2w_switch_changed = false;
+	if (gesture_resume) {
+		if (dt2w_switch_changed) {
+			dt2w_switch = dt2w_switch_temp;
+			dt2w_switch_changed = false;
+		}
+		if (s2w_switch_changed) {
+			s2w_switch = s2w_switch_temp;
+			s2w_switch_changed = false;
+		}
 	}
 #endif
 	return 0;
