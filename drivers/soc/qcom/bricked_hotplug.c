@@ -1,5 +1,4 @@
- 
-/*
+ /*
  * Bricked Hotplug Driver
  *
  * Copyright (c) 2013-2014, Dennis Rassmann <showp1984@gmail.com>
@@ -33,24 +32,24 @@
 
 #define DEBUG 0
 
-#define MPDEC_TAG			  "bricked_hotplug"
-#define HOTPLUG_ENABLED			  0
-#define MSM_MPDEC_STARTDELAY		  100
-#define MSM_MPDEC_DELAY			  130
-#define DEFAULT_MIN_CPUS_ONLINE		  1
-#define DEFAULT_MAX_CPUS_ONLINE		  NR_CPUS
-#define DEFAULT_MAX_CPUS_ONLINE_SUSP  	  1
-#define DEFAULT_SUSPEND_DEFER_TIME	  10
-#define DEFAULT_DOWN_LOCK_DUR		  500
-#define NUM_LITTLE_CORES		  4
-#define NUM_BIG_CORES			  2
-#define MSM_MPDEC_IDLE_FREQ		  384000
+#define BRICKED_TAG			"bricked_hotplug"
+#define HOTPLUG_ENABLED			0
+#define BRICKED_STARTDELAY		100
+#define BRICKED_DELAY			130
+#define DEFAULT_MIN_CPUS_ONLINE		1
+#define DEFAULT_MAX_CPUS_ONLINE		NR_CPUS
+#define DEFAULT_MAX_CPUS_ONLINE_SUSP	1
+#define DEFAULT_SUSPEND_DEFER_TIME	10
+#define DEFAULT_DOWN_LOCK_DUR		500
+#define NUM_LITTLE_CORES		4
+#define NUM_BIG_CORES			2
+#define BRICKED_IDLE_FREQ		384000
 
 enum {
-	MSM_MPDEC_DISABLED = 0,
-	MSM_MPDEC_IDLE,
-	MSM_MPDEC_DOWN,
-	MSM_MPDEC_UP,
+	BRICKED_DISABLED = 0,
+	BRICKED_IDLE,
+	BRICKED_DOWN,
+	BRICKED_UP,
 };
 
 #ifndef CONFIG_POWERSUSPEND
@@ -79,15 +78,15 @@ static struct cpu_hotplug {
 	struct mutex bricked_hotplug_mutex;
 	struct mutex bricked_cpu_mutex;
 } hotplug = {
-	.startdelay = MSM_MPDEC_STARTDELAY,
+	.startdelay = BRICKED_STARTDELAY,
 	.suspended = 0,
 	.suspend_defer_time = DEFAULT_SUSPEND_DEFER_TIME,
 	.min_cpus_online_res = DEFAULT_MIN_CPUS_ONLINE,
 	.max_cpus_online_res = DEFAULT_MAX_CPUS_ONLINE,
 	.max_cpus_online_susp = DEFAULT_MAX_CPUS_ONLINE_SUSP,
-	.delay = MSM_MPDEC_DELAY,
+	.delay = BRICKED_DELAY,
 	.down_lock_dur = DEFAULT_DOWN_LOCK_DUR,
-	.idle_freq = MSM_MPDEC_IDLE_FREQ,
+	.idle_freq = BRICKED_IDLE_FREQ,
 	.max_cpus_online = DEFAULT_MAX_CPUS_ONLINE,
 	.min_cpus_online = DEFAULT_MIN_CPUS_ONLINE,
 	.bricked_enabled = HOTPLUG_ENABLED,
@@ -127,7 +126,7 @@ static int check_down_lock(unsigned int cpu)
 
 extern unsigned int get_rq_info(void);
 
-static unsigned int state = MSM_MPDEC_DISABLED;
+static unsigned int state = BRICKED_DISABLED;
 
 static int get_slowest_cpu(void) {
 	unsigned int cpu, slow_cpu = 0, rate, slow_rate = 0;
@@ -159,9 +158,9 @@ static unsigned int get_slowest_cpu_rate(void) {
 	return slow_rate;
 }
 
-static int mp_decision(void) {
+static int bricked_state_update(void) {
 	static bool first_call = true;
-	int new_state = MSM_MPDEC_IDLE;
+	int new_state = BRICKED_IDLE;
 	int nr_cpu_online;
 	int index;
 	unsigned int rq_depth;
@@ -171,7 +170,7 @@ static int mp_decision(void) {
 	cputime64_t this_time = 0;
 
 	if (!hotplug.bricked_enabled)
-		return MSM_MPDEC_DISABLED;
+		return BRICKED_DISABLED;
 
 	current_time = ktime_to_ms(ktime_get());
 
@@ -189,29 +188,29 @@ static int mp_decision(void) {
 	if ((nr_cpu_online < DEFAULT_MAX_CPUS_ONLINE) && (rq_depth >= NwNs_Threshold[index])) {
 		if ((total_time >= TwTs_Threshold[index]) &&
 			(nr_cpu_online < hotplug.max_cpus_online)) {
-			new_state = MSM_MPDEC_UP;
+			new_state = BRICKED_UP;
 			if (get_slowest_cpu_rate() <=  hotplug.idle_freq)
-				new_state = MSM_MPDEC_IDLE;
+				new_state = BRICKED_IDLE;
 		}
 	} else if ((nr_cpu_online > 1) && (rq_depth <= NwNs_Threshold[index+1])) {
 		if ((total_time >= TwTs_Threshold[index+1]) &&
 			(nr_cpu_online > hotplug.min_cpus_online)) {
-			new_state = MSM_MPDEC_DOWN;
+			new_state = BRICKED_DOWN;
 			if (get_slowest_cpu_rate() > hotplug.idle_freq)
-				new_state = MSM_MPDEC_IDLE;
+				new_state = BRICKED_IDLE;
 		}
 	} else {
-		new_state = MSM_MPDEC_IDLE;
+		new_state = BRICKED_IDLE;
 		total_time = 0;
 	}
 
-	if (new_state != MSM_MPDEC_IDLE) {
+	if (new_state != BRICKED_IDLE) {
 		total_time = 0;
 	}
 
 	last_time = ktime_to_ms(ktime_get());
 #if DEBUG
-	pr_info(MPDEC_TAG"[DEBUG] rq: %u, new_state: %i | Mask=[%d%d%d%d]\n",
+	pr_info(BRICKED_TAG"[DEBUG] rq: %u, new_state: %i | Mask=[%d%d%d%d]\n",
 			rq_depth, new_state, cpu_online(0), cpu_online(1), cpu_online(2), cpu_online(3));
 #endif
 	return new_state;
@@ -226,19 +225,19 @@ static void __ref bricked_hotplug_work(struct work_struct *work) {
 	if (!mutex_trylock(&hotplug.bricked_cpu_mutex))
 		goto out;
 
-	state = mp_decision();
+	state = bricked_state_update();
 	switch (state) {
-	case MSM_MPDEC_DISABLED:
-	case MSM_MPDEC_IDLE:
+	case BRICKED_DISABLED:
+	case BRICKED_IDLE:
 		break;
-	case MSM_MPDEC_DOWN:
+	case BRICKED_DOWN:
 		cpu = get_slowest_cpu();
 		if (cpu > 0) {
 			if (cpu_online(cpu) && !check_down_lock(cpu))
 				cpu_down(cpu);
 		} 
 		break;
-	case MSM_MPDEC_UP:
+	case BRICKED_UP:
 		cpu = cpumask_next_zero(0, cpu_online_mask);
 		if (cpu < DEFAULT_MAX_CPUS_ONLINE) {
 			if (!cpu_online(cpu)) {
@@ -248,7 +247,7 @@ static void __ref bricked_hotplug_work(struct work_struct *work) {
 		}
 		break;
 	default:
-		pr_err(MPDEC_TAG": %s: invalid mpdec hotplug state %d\n",
+		pr_err(BRICKED_TAG": %s: invalid bricked hotplug state %d\n",
 			__func__, state);
 	}
 	mutex_unlock(&hotplug.bricked_cpu_mutex);
@@ -279,7 +278,7 @@ static void bricked_hotplug_suspend(struct work_struct *work)
 	mutex_unlock(&hotplug.bricked_hotplug_mutex);
 
 	if (hotplug.max_cpus_online_susp > 1) {
-		pr_info(MPDEC_TAG": Screen -> off\n");
+		pr_info(BRICKED_TAG": Screen -> off\n");
 		return;
 	}
 
@@ -291,7 +290,7 @@ static void bricked_hotplug_suspend(struct work_struct *work)
 			cpu_down(cpu);
 	}
 
-	pr_info(MPDEC_TAG": Screen -> off. Deactivated bricked hotplug. | Mask=[%d%d%d%d]\n",
+	pr_info(BRICKED_TAG": Screen -> off. Deactivated bricked hotplug. | Mask=[%d%d%d%d]\n",
 			cpu_online(0), cpu_online(1), cpu_online(2), cpu_online(3));
 }
 
@@ -332,7 +331,7 @@ static void __ref bricked_hotplug_resume(struct work_struct *work)
 	/* Resume hotplug workqueue if required */
 	if (required_reschedule) {
 		queue_delayed_work(hotplug_wq, &hotplug_work, 0);
-		pr_info(MPDEC_TAG": Screen -> on. Activated bricked hotplug. | Mask=[%d%d%d%d]\n",
+		pr_info(BRICKED_TAG": Screen -> on. Activated bricked hotplug. | Mask=[%d%d%d%d]\n",
 				cpu_online(0), cpu_online(1), cpu_online(2), cpu_online(3));
 	}
 }
@@ -411,7 +410,7 @@ static int bricked_hotplug_start(void)
 	    alloc_workqueue("susp_wq", WQ_FREEZABLE, 0);
 	if (!susp_wq) {
 		pr_err("%s: Failed to allocate suspend workqueue\n",
-		       MPDEC_TAG);
+		       BRICKED_TAG);
 		ret = -ENOMEM;
 		goto err_dev;
 	}
@@ -422,7 +421,7 @@ static int bricked_hotplug_start(void)
 	notif.notifier_call = fb_notifier_callback;
 	if (fb_register_client(&notif)) {
 		pr_err("%s: Failed to register FB notifier callback\n",
-			MPDEC_TAG);
+			BRICKED_TAG);
 		goto err_susp;
 	}
 #endif
@@ -668,7 +667,7 @@ static ssize_t __ref store_min_cpus_online(struct device *dev,
 				continue;
 			cpu_up(cpu);
 		}
-		pr_info(MPDEC_TAG": min_cpus_online set to %u. Affected CPUs were hotplugged!\n", input);
+		pr_info(BRICKED_TAG": min_cpus_online set to %u. Affected CPUs were hotplugged!\n", input);
 	}
 
 	return count;
@@ -700,7 +699,7 @@ static ssize_t store_max_cpus_online(struct device *dev,
 				continue;
 			cpu_down(cpu);
 		}
-		pr_info(MPDEC_TAG": max_cpus set to %u. Affected CPUs were unplugged!\n", input);
+		pr_info(BRICKED_TAG": max_cpus set to %u. Affected CPUs were unplugged!\n", input);
 	}
 
 	return count;
@@ -766,13 +765,13 @@ static ssize_t store_bricked_enabled(struct device *dev,
 	hotplug.bricked_enabled = input;
 
 	if (!hotplug.bricked_enabled) {
-		state = MSM_MPDEC_DISABLED;
+		state = BRICKED_DISABLED;
 		bricked_hotplug_stop();
-		pr_info(MPDEC_TAG": Disabled\n");
+		pr_info(BRICKED_TAG": Disabled\n");
 	} else {
-		state = MSM_MPDEC_IDLE;
+		state = BRICKED_IDLE;
 		bricked_hotplug_start();
-		pr_info(MPDEC_TAG": Enabled\n");
+		pr_info(BRICKED_TAG": Enabled\n");
 	}
 
 	return count;
@@ -896,7 +895,7 @@ err_dev:
 }
 
 static struct platform_device bricked_hotplug_device = {
-	.name = MPDEC_TAG,
+	.name = BRICKED_TAG,
 	.id = -1,
 };
 
@@ -912,40 +911,40 @@ static struct platform_driver bricked_hotplug_driver = {
 	.probe = bricked_hotplug_probe,
 	.remove = bricked_hotplug_remove,
 	.driver = {
-		.name = MPDEC_TAG,
+		.name = BRICKED_TAG,
 		.owner = THIS_MODULE,
 	},
 };
 
-static int __init msm_mpdec_init(void)
+static int __init bricked_init(void)
 {
 	int ret = 0;
 
 	ret = platform_driver_register(&bricked_hotplug_driver);
 	if (ret) {
-		pr_err("%s: Driver register failed: %d\n", MPDEC_TAG, ret);
+		pr_err("%s: Driver register failed: %d\n", BRICKED_TAG, ret);
 		return ret;
 	}
 
 	ret = platform_device_register(&bricked_hotplug_device);
 	if (ret) {
-		pr_err("%s: Device register failed: %d\n", MPDEC_TAG, ret);
+		pr_err("%s: Device register failed: %d\n", BRICKED_TAG, ret);
 		return ret;
 	}
 
-	pr_info(MPDEC_TAG": %s init complete.", __func__);
+	pr_info(BRICKED_TAG": %s init complete.", __func__);
 
 	return ret;
 }
 
-void msm_mpdec_exit(void)
+void bricked_exit(void)
 {
 	platform_device_unregister(&bricked_hotplug_device);
 	platform_driver_unregister(&bricked_hotplug_driver);
 }
 
-late_initcall(msm_mpdec_init);
-module_exit(msm_mpdec_exit);
+late_initcall(bricked_init);
+module_exit(bricked_exit);
 
 MODULE_AUTHOR("Pranav Vashi <neobuddy89@gmail.com>");
 MODULE_DESCRIPTION("Bricked Hotplug Driver");
