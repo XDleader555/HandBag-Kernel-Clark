@@ -72,9 +72,8 @@
 
 #define BLANK_FLAG_LP	FB_BLANK_VSYNC_SUSPEND
 #define BLANK_FLAG_ULP	FB_BLANK_NORMAL
-
-#define MDSS_BRIGHT_TO_BL_DIMMER(out, v) do {\
-					out = (((v) - 2) * 255 / 250);\
+#define MDSS_BRIGHT_TO_BL_DIMMER(out, v) do {				\
+					out = (v-3)*(255-1)/(255-3)+1;	\
 					} while (0)
 
 bool backlight_dimmer = false;
