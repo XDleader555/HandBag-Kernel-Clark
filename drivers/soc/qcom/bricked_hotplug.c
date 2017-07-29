@@ -29,7 +29,7 @@
 #define DEBUG 0
 
 #define BRICKED_TAG			"bricked_hotplug"
-#define HOTPLUG_ENABLED			0
+#define HOTPLUG_ENABLED			1
 #define BRICKED_STARTDELAY		100
 #define BRICKED_DELAY			130
 #define DEFAULT_MIN_CPUS_ONLINE		1
