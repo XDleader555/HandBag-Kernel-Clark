@@ -1109,7 +1109,7 @@ ssize_t cpu_clock_get_vdd(char *buf)
 					a53_clk.c.vdd_class->vdd_uv[i]);
 		if (uv < 0)
 			return 0;
-		count += sprintf(buf + count, "A53: %lumhz: %d mV\n",
+		count += sprintf(buf + count, "A53-%lumhz: %d mV\n",
 					a53_clk.c.fmax[i] / 1000000,
 					uv / 1000);
 	}
@@ -1120,7 +1120,7 @@ ssize_t cpu_clock_get_vdd(char *buf)
 					a57_clk.c.vdd_class->vdd_uv[i]);
 		if (uv < 0)
 			return 0;
-		count += sprintf(buf + count, "A57: %lumhz: %d mV\n",
+		count += sprintf(buf + count, "A57-%lumhz: %d mV\n",
 					a57_clk.c.fmax[i] / 1000000,
 					uv / 1000);
 	}
